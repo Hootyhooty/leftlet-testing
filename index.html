@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Leaflet Forward + Reverse Geocoding</title>
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+    }
+    #header {
+      padding: 10px;
+      background: #f4f4f4;
+      font-size: 14px;
+    }
+    #search {
+      margin-bottom: 6px;
+    }
+    #search input {
+      width: 300px;
+      padding: 6px;
+      font-size: 14px;
+    }
+    #map {
+      height: 85vh;
+      width: 100%;
+    }
+    .label {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="header">
+    <div id="search">
+      <input
+        id="locationInput"
+        type="text"
+        placeholder="Type location and press Enter (e.g. Central World Bangkok)"
+      />
+    </div>
+
+    <span class="label">Lat:</span> <span id="lat">—</span>,
+    <span class="label">Lng:</span> <span id="lng">—</span><br/>
+    <span class="label">Place:</span> <span id="place">—</span>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    let marker = null;
+
+    // Init map
+    const map = L.map('map').setView([13.7563, 100.5018], 13);
+
+    // Tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Forward geocoding (text → lat/lng)
+    async function forwardGeocode(query) {
+      const url =
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
+
+      const res = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      const data = await res.json();
+      return data.length ? data[0] : null;
+    }
+
+    // Reverse geocoding (lat/lng → text)
+    async function reverseGeocode(lat, lng) {
+      const url =
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+
+      const res = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      const data = await res.json();
+      return data.display_name || 'Unknown location';
+    }
+
+    // Update map + UI
+    async function setLocation(lat, lng) {
+      if (marker) {
+        marker.setLatLng([lat, lng]);
+      } else {
+        marker = L.marker([lat, lng]).addTo(map);
+      }
+
+      map.setView([lat, lng], 15);
+
+      document.getElementById('lat').textContent = Number(lat).toFixed(6);
+      document.getElementById('lng').textContent = Number(lng).toFixed(6);
+      document.getElementById('place').textContent = 'Loading...';
+
+      const place = await reverseGeocode(lat, lng);
+      document.getElementById('place').textContent = place;
+
+      marker.bindPopup(place).openPopup();
+    }
+
+    // Map click → reverse geocode
+    map.on('click', (e) => {
+      setLocation(e.latlng.lat, e.latlng.lng);
+    });
+
+    // Input box → forward geocode
+    document
+      .getElementById('locationInput')
+      .addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') {
+          const query = e.target.value.trim();
+          if (!query) return;
+
+          const result = await forwardGeocode(query);
+
+          if (!result) {
+            alert('Location not found');
+            return;
+          }
+
+          setLocation(result.lat, result.lon);
+        }
+      });
+  </script>
+
+</body>
+</html>
